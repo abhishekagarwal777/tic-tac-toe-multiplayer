@@ -1,0 +1,116 @@
+name: tic-tac-toe-server
+data_dir: "./data/"
+
+logger:
+  stdout: true
+  level: "info"
+  file: ""
+
+console:
+  port: 7351
+  username: "admin"
+  password: "password"
+  signing_key: "defaultsigningkey"
+  token_expiry_sec: 86400
+  max_message_size_bytes: 4096
+
+socket:
+  server_key: "defaultkey"
+  port: 7350
+  address: "0.0.0.0"
+  protocol: "tcp"
+  max_message_size_bytes: 4096
+  read_buffer_size_bytes: 4096
+  write_buffer_size_bytes: 4096
+  read_timeout_ms: 10000
+  write_timeout_ms: 10000
+  idle_timeout_ms: 60000
+  write_wait_ms: 5000
+  pong_wait_ms: 10000
+  ping_period_ms: 8000
+  ping_backoff_threshold: 20
+  outgoing_queue_size: 16
+
+runtime:
+  env: []
+  path: "/nakama/data/modules"
+  http_key: "defaulthttpkey"
+  js_entrypoint: ""
+  lua_api_stacktrace: false
+  lua_min_count: 16
+  lua_max_count: 48
+  js_min_count: 16
+  js_max_count: 48
+  call_stack_size: 128
+  registry_size: 512
+  event_queue_size: 65536
+  event_queue_workers: 8
+
+match:
+  input_queue_size: 128
+  call_queue_size: 128
+  join_attempt_queue_size: 128
+  join_marker_deadline_ms: 15000
+  max_empty_sec: 300
+  deferred_message_fn: ""
+
+match_handler:
+  name: "match_handler"
+
+session:
+  encryption_key: "defaultencryptionkey"
+  token_expiry_sec: 7200
+  refresh_encryption_key: "defaultrefreshkey"
+  refresh_token_expiry_sec: 86400
+  single_socket: false
+  single_match: false
+  single_party: false
+  single_party_max_presence: 0
+
+leaderboard:
+  callback_queue_size: 65536
+  callback_queue_workers: 8
+
+database:
+  address:
+    - "postgres:localdb@postgres:5432/nakama"
+  conn_max_lifetime_ms: 3600000
+  max_open_conns: 100
+  max_idle_conns: 100
+  dns_scan_interval_sec: 60
+
+social:
+  steam:
+    publisher_key: ""
+    app_id: 0
+  facebook:
+    limited_login_app_id: ""
+
+api:
+  port: 7350
+  address: "0.0.0.0"
+  call_stack_size: 128
+  http_key: "defaulthttpkey"
+  max_message_size_bytes: 4096
+  read_timeout_ms: 10000
+  write_timeout_ms: 10000
+  idle_timeout_ms: 60000
+
+metrics:
+  reporting_freq_sec: 60
+  namespace: ""
+  stackdriver_projectid: ""
+  prometheus_port: 0
+
+storage:
+  disable_index_only: false
+
+tracker:
+  event_queue_size: 65536
+
+cluster:
+  join:
+    - ""
+  gossip_bindaddr: "0.0.0.0"
+  gossip_bindport: 7352
+  rpc_port: 7353

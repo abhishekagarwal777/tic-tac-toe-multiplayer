@@ -1,0 +1,9 @@
+{
+  "short_name": "Tic-Tac-Toe",
+  "name": "Multiplayer Tic-Tac-Toe",
+  "icons": [],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#6366f1",
+  "background_color": "#ffffff"
+}
