@@ -1,0 +1,21 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      # Tell Vercel to find the React project inside the 'frontend' directory
+      "src": "frontend/package.json",
+      "use": "@vercel/static-build"
+    }
+  ],
+  "routes": [
+    {
+      # This handles routing for a single-page application (SPA) like React
+      "src": "/[^.]+",
+      "dest": "/frontend/index.html"
+    }
+  ],
+  # Set the working directory to 'frontend'
+  "installCommand": "npm install --prefix frontend",
+  "buildCommand": "npm run build --prefix frontend",
+  "outputDirectory": "frontend/dist"
+}
