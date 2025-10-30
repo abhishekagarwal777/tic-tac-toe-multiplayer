@@ -1,172 +1,246 @@
-import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
-import { Client, Session, Socket, WebSocketAdapter, Match } from '@heroiclabs/nakama-js';
-import { GameState, GameUpdate } from '../types/game'; // Assuming we'll define these types later
+import React, { createContext, useState, useEffect, useCallback } from 'react';
+import { Client, Session, Socket } from '@heroiclabs/nakama-js';
 
-// --- Configuration ---
-// These variables must be set in Vercel environment settings
-const NAKAMA_HOST = import.meta.env.VITE_NAKAMA_HOST || 'localhost';
-const NAKAMA_PORT = import.meta.env.VITE_NAKAMA_PORT || '7350';
-const NAKAMA_KEY = import.meta.env.VITE_NAKAMA_SERVER_KEY || 'defaultkey';
-
-// Determines if we use 'http' or 'https' and 'ws' or 'wss'
-const USE_SSL = NAKAMA_HOST !== 'localhost'; 
-
-// --- Context Types ---
 interface NakamaContextType {
   client: Client | null;
   session: Session | null;
   socket: Socket | null;
-  userId: string | null;
-  isAuthenticated: boolean;
-  isLoading: boolean;
-  error: string | null;
-  match: Match | null;
-  matchState: GameState | null;
-  connectAndAuthenticate: (nickname: string) => void;
-  findMatch: (min: number, max: number) => void;
-  leaveMatch: () => void;
-  sendMatchData: (opCode: number, data: any) => void;
+  isConnected: boolean;
+  authenticate: (username: string) => Promise<boolean>;
+  disconnect: () => void;
 }
 
-const NakamaContext = createContext<NakamaContextType | undefined>(undefined);
+export const NakamaContext = createContext<NakamaContextType | null>(null);
 
-export const NakamaProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+interface NakamaProviderProps {
+  children: React.ReactNode;
+}
+
+export const NakamaProvider: React.FC<NakamaProviderProps> = ({ children }) => {
   const [client, setClient] = useState<Client | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [socket, setSocket] = useState<Socket | null>(null);
-  const [userId, setUserId] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  
-  // Real-time Game State
-  const [match, setMatch] = useState<Match | null>(null);
-  const [matchState, setMatchState] = useState<GameState | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
 
-  // 1. Initialize Client on Mount
+  // Initialize Nakama client
   useEffect(() => {
     try {
-      // Create a new Nakama client instance
-      const protocol = USE_SSL ? 'https' : 'http';
-      const runtimeClient = new Client(NAKAMA_KEY, NAKAMA_HOST, NAKAMA_PORT, USE_SSL, protocol);
-      setClient(runtimeClient);
-      setIsLoading(false);
-    } catch (e) {
-      setError("Nakama Client initialization failed.");
-      setIsLoading(false);
+      // Get server configuration from environment variables
+      const serverKey = import.meta.env.VITE_NAKAMA_SERVER_KEY || 'defaultkey';
+      const host = import.meta.env.VITE_NAKAMA_HOST || 'localhost';
+      const port = import.meta.env.VITE_NAKAMA_PORT || '7350';
+      const useSSL = import.meta.env.VITE_NAKAMA_USE_SSL === 'true';
+
+      console.log('Initializing Nakama client with:', {
+        host,
+        port,
+        useSSL,
+        serverKey: serverKey.substring(0, 5) + '...'
+      });
+
+      // Create Nakama client
+      const nakamaClient = new Client(serverKey, host, port, useSSL);
+      setClient(nakamaClient);
+
+      console.log('Nakama client initialized successfully');
+    } catch (error) {
+      console.error('Error initializing Nakama client:', error);
     }
   }, []);
 
-  // 2. Authentication (Anonymous Login)
-  const connectAndAuthenticate = async (nickname: string) => {
-    if (!client) return;
-    setIsLoading(true);
-    setError(null);
-    try {
-      // 1. Authenticate (using a device ID for simplicity, ideal for mobile-first)
-      let currentSession: Session;
-      
-      // Use Nickname as the Device ID for simple testing and clarity
-      currentSession = await client.authenticateDevice(nickname, true, nickname); 
-      setSession(currentSession);
-      setUserId(currentSession.user_id);
+  // Authenticate with Nakama
+  const authenticate = useCallback(
+    async (username: string): Promise<boolean> => {
+      if (!client) {
+        console.error('Client not initialized');
+        return false;
+      }
 
-      // 2. Connect the Realtime Socket
-      const socketProtocol = USE_SSL ? 'wss' : 'ws';
-      const runtimeSocket = client.createSocket(USE_SSL, socketProtocol, new WebSocketAdapter(USE_SSL));
-      
-      await runtimeSocket.connect(currentSession, true);
-      setSocket(runtimeSocket);
-      
-      // 3. Setup Socket Listeners
-      runtimeSocket.onmatchdata = (matchData: Match) => {
-        // Parse the game state payload received from the server (Lua)
-        const update: GameUpdate = JSON.parse(new TextDecoder().decode(matchData.data));
-        setMatchState(update.state); // Update the board, status, etc.
-      };
+      try {
+        console.log('Authenticating user:', username);
 
-      runtimeSocket.onmatchpresence = (presence) => {
-        // Handle players joining or leaving the match
-        if (presence.leaves.length > 0) {
-          setError("Opponent disconnected!");
-          setMatch(null);
-          setMatchState(null);
-        }
-      };
+        // Generate a unique device ID based on username and timestamp
+        const deviceId = `device_${username}_${Date.now()}`;
 
-      runtimeSocket.onmatchmakermatched = (matchmakerMatched) => {
-        // A match was found, now join the match
-        runtimeSocket.joinMatch(matchmakerMatched.match_id).then(match => {
-            setMatch(match);
-            setError(null);
+        // Authenticate using device authentication
+        const newSession = await client.authenticateDevice(deviceId, true, username);
+        console.log('Authentication successful:', {
+          userId: newSession.user_id,
+          username: newSession.username,
+          token: newSession.token?.substring(0, 20) + '...'
         });
+
+        setSession(newSession);
+
+        // Store session in localStorage for persistence
+        localStorage.setItem('nakama_session', JSON.stringify({
+          token: newSession.token,
+          refresh_token: newSession.refresh_token,
+          created_at: newSession.created_at,
+          expires_at: newSession.expires_at,
+          username: newSession.username,
+          user_id: newSession.user_id
+        }));
+
+        // Create socket connection
+        await connectSocket(newSession);
+
+        return true;
+      } catch (error: any) {
+        console.error('Authentication error:', error);
+        throw new Error(error.message || 'Failed to authenticate');
+      }
+    },
+    [client]
+  );
+
+  // Connect socket
+  const connectSocket = async (sessionToUse: Session) => {
+    if (!client) {
+      console.error('Client not initialized');
+      return;
+    }
+
+    try {
+      console.log('Creating socket connection...');
+
+      // Create socket with configuration
+      const useSSL = import.meta.env.VITE_NAKAMA_USE_SSL === 'true';
+      const newSocket = client.createSocket(useSSL, false);
+
+      // Setup socket event listeners
+      newSocket.ondisconnect = (event) => {
+        console.log('Socket disconnected:', event);
+        setIsConnected(false);
       };
 
-    } catch (e: any) {
-      console.error("Authentication or Socket connection failed:", e);
-      // The "Failed to fetch" error usually surfaces here
-      setError(`Connection Error: Check NAKAMA_HOST and ensure ports 7350 and 7352 are open. Original error: ${e.message}`);
-    } finally {
-      setIsLoading(false);
+      newSocket.onerror = (error) => {
+        console.error('Socket error:', error);
+        setIsConnected(false);
+      };
+
+      newSocket.onnotification = (notification) => {
+        console.log('Notification received:', notification);
+      };
+
+      // Connect socket
+      await newSocket.connect(sessionToUse, true);
+      console.log('Socket connected successfully');
+
+      setSocket(newSocket);
+      setIsConnected(true);
+    } catch (error) {
+      console.error('Error connecting socket:', error);
+      setIsConnected(false);
+      throw error;
     }
   };
 
-  // 3. Matchmaking and Game Actions
-  const findMatch = (minPlayers: number = 2, maxPlayers: number = 2) => {
-    if (!socket || !session) return setError("Not connected to server.");
-    setError("Finding a random player...");
-    // 1. Add player to the matchmaker pool
-    socket.addMatchmaker(session.username, minPlayers, maxPlayers);
-  };
-  
-  const leaveMatch = () => {
-    if (socket && match) {
-        socket.leaveMatch(match.match_id);
+  // Disconnect from Nakama
+  const disconnect = useCallback(() => {
+    console.log('Disconnecting from Nakama...');
+
+    if (socket) {
+      try {
+        socket.disconnect(true);
+      } catch (error) {
+        console.error('Error disconnecting socket:', error);
+      }
     }
-    setMatch(null);
-    setMatchState(null);
-    setError("Match left.");
-  };
 
-  const sendMatchData = (opCode: number, data: any) => {
-    if (!socket || !match) return setError("No active match to send data to.");
-    
-    // Convert data to JSON string and then to a Uint8Array (required by Nakama)
-    const payload = JSON.stringify(data);
-    const dataBuffer = new TextEncoder().encode(payload);
-    
-    // Send the move to the server (Lua runtime)
-    socket.sendMatchData(match.match_id, opCode, dataBuffer);
-  };
+    setSocket(null);
+    setSession(null);
+    setIsConnected(false);
 
-  const contextValue = useMemo(() => ({
+    // Clear stored session
+    localStorage.removeItem('nakama_session');
+
+    console.log('Disconnected successfully');
+  }, [socket]);
+
+  // Try to restore session from localStorage
+  useEffect(() => {
+    const restoreSession = async () => {
+      if (!client || session) return;
+
+      try {
+        const storedSession = localStorage.getItem('nakama_session');
+        if (!storedSession) return;
+
+        console.log('Found stored session, attempting to restore...');
+        const sessionData = JSON.parse(storedSession);
+
+        // Check if session is expired
+        const now = Date.now() / 1000;
+        if (sessionData.expires_at && sessionData.expires_at < now) {
+          console.log('Stored session expired');
+          localStorage.removeItem('nakama_session');
+          return;
+        }
+
+        // Recreate session object
+        const restoredSession = Session.restore(
+          sessionData.token,
+          sessionData.refresh_token
+        );
+
+        console.log('Session restored successfully');
+        setSession(restoredSession);
+
+        // Reconnect socket
+        await connectSocket(restoredSession);
+      } catch (error) {
+        console.error('Error restoring session:', error);
+        localStorage.removeItem('nakama_session');
+      }
+    };
+
+    restoreSession();
+  }, [client, session]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (socket) {
+        try {
+          socket.disconnect(true);
+        } catch (error) {
+          console.error('Error disconnecting on unmount:', error);
+        }
+      }
+    };
+  }, [socket]);
+
+  // Monitor connection status
+  useEffect(() => {
+    if (!socket) {
+      setIsConnected(false);
+      return;
+    }
+
+    // Check if socket is connected
+    const checkConnection = setInterval(() => {
+      const connected = socket !== null;
+      setIsConnected(connected);
+    }, 5000);
+
+    return () => clearInterval(checkConnection);
+  }, [socket]);
+
+  const value: NakamaContextType = {
     client,
     session,
     socket,
-    userId,
-    isAuthenticated: !!session,
-    isLoading,
-    error,
-    match,
-    matchState,
-    connectAndAuthenticate,
-    findMatch,
-    leaveMatch,
-    sendMatchData,
-  }), [client, session, socket, userId, isLoading, error, match, matchState]);
+    isConnected,
+    authenticate,
+    disconnect
+  };
 
   return (
-    <NakamaContext.Provider value={contextValue}>
+    <NakamaContext.Provider value={value}>
       {children}
     </NakamaContext.Provider>
   );
 };
 
-export const useNakama = () => {
-  const context = useContext(NakamaContext);
-  if (!context) {
-    throw new Error('useNakama must be used within a NakamaProvider');
-  }
-  return context;
-};
-
-// Next files to create: frontend/src/types/game.ts and frontend/src/App.tsx
+export default NakamaProvider;

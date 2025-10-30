@@ -1,6 +1,6 @@
 import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
 import { NakamaContext } from './NakamaContext';
-import { GameState, MatchData, Player } from '../types/game';
+import { GameState, Player } from '../types/game';
 
 interface GameContextType {
   gameState: GameState | null;
@@ -32,7 +32,7 @@ export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
   };
 
   // Handle match data messages from server
-  const handleMatchData = useCallback((matchData: MatchData) => {
+  const handleMatchData = useCallback((matchData: any) => {
     console.log('Received match data:', matchData);
 
     try {
@@ -56,7 +56,6 @@ export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
 
         case OpCodes.PLAYER_JOINED:
           console.log('Player joined:', data.player);
-          // Update player list when a new player joins
           if (gameState) {
             setGameState((prev) => {
               if (!prev) return prev;
@@ -73,7 +72,6 @@ export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
 
         case OpCodes.PLAYER_LEFT:
           console.log('Player left:', data.user_id);
-          // Handle player leaving
           if (gameState && !gameState.game_over) {
             setGameState((prev) => {
               if (!prev) return prev;
@@ -111,7 +109,6 @@ export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
   const handleMatchPresence = useCallback((presence: any) => {
     console.log('Match presence event:', presence);
 
-    // Handle players leaving
     if (presence.leaves && presence.leaves.length > 0) {
       console.log('Players left:', presence.leaves);
       if (gameState && !gameState.game_over) {
@@ -126,7 +123,6 @@ export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
       }
     }
 
-    // Handle players joining
     if (presence.joins && presence.joins.length > 0) {
       console.log('Players joined:', presence.joins);
     }
@@ -138,18 +134,15 @@ export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
 
     const socket = nakamaContext.socket;
 
-    // Listen for match data
-    socket.onmatchdata = (matchData: MatchData) => {
+    socket.onmatchdata = (matchData: any) => {
       handleMatchData(matchData);
     };
 
-    // Listen for match presence events
     socket.onmatchpresence = (presence: any) => {
       handleMatchPresence(presence);
     };
 
     return () => {
-      // Cleanup listeners
       socket.onmatchdata = () => {};
       socket.onmatchpresence = () => {};
     };
@@ -168,34 +161,29 @@ export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
     try {
       console.log('Starting matchmaking...');
 
-      // Create matchmaking ticket
       const matchmakerTicket = await nakamaContext.socket.addMatchmaker(
-        2, // min players
-        2, // max players
-        '*', // query
-        {}, // string properties
-        {}, // numeric properties
-        undefined // count multiple (optional)
+        2,
+        2,
+        '*',
+        {},
+        {}
       );
 
       console.log('Matchmaker ticket created:', matchmakerTicket);
 
-      // Listen for matchmaker matched event
       nakamaContext.socket.onmatchmakermatched = async (matched) => {
         console.log('Matchmaker matched:', matched);
 
         try {
-          // Join the match
           const match = await nakamaContext.socket!.joinMatch(matched.match_id);
           console.log('Joined match:', match);
           
           setCurrentMatchId(match.match_id);
           setMatchmaking(false);
 
-          // Initialize game state with empty board
           setGameState({
             board: [0, 0, 0, 0, 0, 0, 0, 0, 0],
-            current_turn: 1, // X goes first
+            current_turn: 1,
             game_over: false,
             winner: null,
             move_count: 0,
@@ -227,7 +215,6 @@ export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
       return;
     }
 
-    // Validate it's the player's turn
     const currentPlayer = gameState.players?.find(
       (p) => p.user_id === nakamaContext.session?.user_id
     );
@@ -237,7 +224,6 @@ export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
       return;
     }
 
-    // Validate cell is empty
     if (gameState.board[position] !== 0) {
       console.error('Cell is not empty');
       return;
@@ -246,10 +232,9 @@ export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
     console.log('Making move at position:', position);
 
     try {
-      // Send move to server
       const moveData = JSON.stringify({
         op_code: OpCodes.MAKE_MOVE,
-        position: position + 1 // Lua arrays are 1-indexed
+        position: position + 1
       });
 
       nakamaContext.socket.sendMatchState(
@@ -286,7 +271,6 @@ export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
     }
   };
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (currentMatchId && nakamaContext?.socket) {
