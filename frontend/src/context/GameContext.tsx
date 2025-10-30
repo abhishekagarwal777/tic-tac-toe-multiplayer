@@ -1,6 +1,6 @@
 import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
 import { NakamaContext } from './NakamaContext';
-import { GameState, Player } from '../types/game';
+import { GameState } from '../types/game';
 
 interface GameContextType {
   gameState: GameState | null;
@@ -162,11 +162,9 @@ export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
       console.log('Starting matchmaking...');
 
       const matchmakerTicket = await nakamaContext.socket.addMatchmaker(
-        2,
-        2,
         '*',
-        {},
-        {}
+        2,
+        2,
       );
 
       console.log('Matchmaker ticket created:', matchmakerTicket);

@@ -88,7 +88,7 @@ const MatchStatus: React.FC = () => {
   // Waiting for Second Player
   if (gameState && gameState.players && gameState.players.length === 1) {
     const currentPlayer = gameState.players[0];
-    const isCurrentUser = session?.user_id === currentPlayer.user_id;
+    // const _isCurrentUser = session?.user_id === currentPlayer.user_id;
 
     return (
       <div className="min-h-[60vh] flex items-center justify-center">

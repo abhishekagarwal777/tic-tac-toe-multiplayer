@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useState } from 'react';
+import React, { useContext, useState } from 'react';
 import { GameContext } from '../context/GameContext';
 import { NakamaContext } from '../context/NakamaContext';
 
@@ -202,7 +202,7 @@ const GameBoard: React.FC = () => {
       {/* Player Info Cards */}
       {gameState?.players && gameState.players.length > 0 && (
         <div className="mt-6 space-y-3">
-          {gameState.players.map((player, idx) => {
+          {gameState.players.map((player) => {
             const isCurrentUser = session?.user_id === player.user_id;
             const isPlayerTurn = gameState.current_turn === player.symbol;
             

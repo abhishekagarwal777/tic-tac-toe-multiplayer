@@ -1,7 +1,7 @@
-cat > vite-env.d.ts << 'EOF'
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {
+  readonly MODE: string
   readonly VITE_NAKAMA_SERVER_KEY: string
   readonly VITE_NAKAMA_HOST: string
   readonly VITE_NAKAMA_PORT: string
@@ -11,4 +11,3 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv
 }
-EOF
